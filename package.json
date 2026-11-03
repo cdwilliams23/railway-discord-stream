@@ -1,0 +1,20 @@
+{
+  "name": "railway-discord-stream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Railway interview project that streams Discord messages to a web frontend.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}
