@@ -42,11 +42,17 @@
         messageList.prepend(article);
       }
 
-      fetch('/api/messages').then(response => response.json()).then(({ messages }) => messages.forEach(addMessage));
+      fetch('/api/messages').then(response => {
+        if (response.status === 401) { window.location.href = '/login.html'; return null; }
+        return response.json();
+      }).then(result => result?.messages.forEach(addMessage));
       const stream = new EventSource('/events');
       stream.addEventListener('ready', () => { status.textContent = 'Connected'; });
       stream.addEventListener('message', event => addMessage(JSON.parse(event.data)));
-      stream.onerror = () => { status.textContent = 'Reconnecting...'; };
+      stream.onerror = () => {
+        status.textContent = 'Reconnecting...';
+        if (stream.readyState === EventSource.CLOSED) window.location.href = '/login.html';
+      };
     </script>
   </body>
 </html>

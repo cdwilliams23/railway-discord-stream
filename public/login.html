@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Viewer access</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+      body { margin: 0; background: #101827; color: #eef4ff; }
+      main { max-width: 420px; margin: 15vh auto; padding: 32px 20px; }
+      form { display: grid; gap: 12px; background: #172338; border: 1px solid #2a3a52; border-radius: 10px; padding: 24px; }
+      input, button { border: 1px solid #49617f; border-radius: 6px; padding: 11px; font: inherit; }
+      input { background: #101827; color: #eef4ff; }
+      button { background: #4278d4; color: white; cursor: pointer; }
+      #error { color: #ff9b9b; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Viewer access</h1>
+      <p>Enter the access token shared by the stream owner.</p>
+      <form id="login-form">
+        <label for="token">Access token</label>
+        <input id="token" type="password" autocomplete="current-password" required />
+        <button type="submit">Continue</button>
+        <div id="error" role="alert"></div>
+      </form>
+    </main>
+    <script>
+      const form = document.querySelector('#login-form');
+      const error = document.querySelector('#error');
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        error.textContent = '';
+        const response = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: document.querySelector('#token').value })
+        });
+        if (response.ok) window.location.href = '/';
+        else error.textContent = (await response.json()).error || 'Unable to sign in.';
+      });
+    </script>
+  </body>
+</html>
