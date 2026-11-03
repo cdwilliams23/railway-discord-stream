@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -10,6 +11,7 @@ const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "..", "public");
 const port = Number(process.env.PORT || 3000);
 const channelId = process.env.DISCORD_CHANNEL_ID;
+const viewerAccessToken = process.env.VIEWER_ACCESS_TOKEN;
 const subscribers = new Set();
 
 const app = express();
@@ -21,11 +23,46 @@ app.get("/health", (_req, res) => {
     status: "ok",
     discordConfigured: Boolean(process.env.DISCORD_BOT_TOKEN && channelId),
     storage: process.env.DATABASE_URL ? "postgresql" : "memory",
+    viewerAuthentication: Boolean(viewerAccessToken),
     subscribers: subscribers.size
   });
 });
 
-app.get("/api/messages", async (_req, res) => {
+function getCookie(req, name) {
+  const cookies = req.headers.cookie?.split(";").map((part) => part.trim()) || [];
+  const match = cookies.find((cookie) => cookie.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
+}
+
+function hasValidViewerSession(req) {
+  if (!viewerAccessToken) return true;
+  const session = getCookie(req, "viewer_session");
+  if (!session || session.length !== viewerAccessToken.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(session), Buffer.from(viewerAccessToken));
+}
+
+function requireViewer(req, res, next) {
+  if (hasValidViewerSession(req)) return next();
+  res.status(401).json({ error: "Viewer authentication required" });
+}
+
+app.post("/auth/login", express.json(), (req, res) => {
+  if (!viewerAccessToken) return res.status(503).json({ error: "Viewer authentication is not configured" });
+  const token = typeof req.body?.token === "string" ? req.body.token : "";
+  const valid = token.length === viewerAccessToken.length &&
+    crypto.timingSafeEqual(Buffer.from(token), Buffer.from(viewerAccessToken));
+  if (!valid) return res.status(401).json({ error: "Invalid access token" });
+  const cookie = `viewer_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+  res.setHeader("Set-Cookie", cookie);
+  res.json({ authenticated: true });
+});
+
+app.post("/auth/logout", (_req, res) => {
+  res.setHeader("Set-Cookie", "viewer_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  res.json({ authenticated: false });
+});
+
+app.get("/api/messages", requireViewer, async (_req, res) => {
   try {
     res.json({ messages: await getRecentMessages() });
   } catch (error) {
@@ -34,7 +71,7 @@ app.get("/api/messages", async (_req, res) => {
   }
 });
 
-app.get("/events", (req, res) => {
+app.get("/events", requireViewer, (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
