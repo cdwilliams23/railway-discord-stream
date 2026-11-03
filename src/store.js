@@ -2,6 +2,7 @@ import pg from "pg";
 
 const { Pool } = pg;
 let pool;
+const memoryMessages = [];
 
 export async function initStore() {
   if (!process.env.DATABASE_URL) {
@@ -30,7 +31,12 @@ export async function initStore() {
 }
 
 export async function saveMessage(message) {
-  if (!pool) return message;
+  if (!pool) {
+    if (memoryMessages.some((savedMessage) => savedMessage.id === message.id)) return null;
+    memoryMessages.push(message);
+    if (memoryMessages.length > 100) memoryMessages.shift();
+    return message;
+  }
 
   const result = await pool.query(
     `INSERT INTO discord_messages
@@ -46,7 +52,7 @@ export async function saveMessage(message) {
 }
 
 export async function getRecentMessages(limit = 100) {
-  if (!pool) return [];
+  if (!pool) return memoryMessages.slice(-limit);
 
   const result = await pool.query(
     `SELECT discord_message_id AS id, author, content,
